@@ -1,0 +1,199 @@
+---
+title: "Modelagem Gaussiana"
+author: "Prof. Paulo Cerqueira Jr"
+format: html
+editor: visual
+---
+
+## Descrição do modelo:
+
+Seja $X=(X_{1}, X_{2}, \dots, X_{n})'$ um vetor contendo uma amostra aleatória da distribuição $N(\mu, \sigma^2)$.
+
+A função de verossimilhança é denotada por $L(\theta\mid X)$, em que $\theta=(\mu, \sigma^2)$. Devido à independência das variáveis aleatórias $X_{i}$, temos
+
+$$
+\begin{array}{cll}
+L(\theta\mid X)&=&\displaystyle\prod_{i=1}^{n}f(x_{i}\mid \mu , \sigma^2)\\
+&=& \displaystyle\prod_{i=1}^{n}(2\pi\sigma^2)^{-1/2}\text{exp}\left\{  -\dfrac{1}{2\sigma^2}(x_{i}-\mu)^2\right\}\\
+&=& (2\pi\sigma^2)^{-n/2}\text{exp}\left\{  -\dfrac{1}{2\sigma^2}\displaystyle\sum_{i=1}^{n}(x_{i}-\mu)^2\right\}\\
+&=& (2\pi\sigma^2)^{-n/2}\text{exp}\left\{  -\dfrac{1}{2\sigma^2}\left[\displaystyle\sum_{i=1}^{n}x_{i}^2-2\mu\displaystyle\sum_{i=1}^{n}x_{i}+n\mu^2\right]\right\}\\
+\end{array}
+$$
+
+Uma forma de reparametrizar, defina $\phi=\dfrac{1}{\sigma^2}$, denominando essa quantidade como de precisão. Se $X_{i}\sim N(\mu, \sigma^2)$, então, $X_{i}\sim N(\mu, 1/\phi)$. Neste caso, a função de verossimilhança fica da seguinte forma:
+
+$$
+L(\theta\mid X)= (2\pi/\phi)^{-n/2}\text{exp}\left\{  -\dfrac{\phi}{2}\left[\displaystyle\sum_{i=1}^{n}x_{i}^2-2\mu\displaystyle\sum_{i=1}^{n}x_{i}+n\mu^2\right]\right\}.
+$$
+
+A maneira de parametrizar a distribuição escolhida é de acordo com o pesquisador. Uma escolha de parametrização pode facilitar os cálculos, a interpretação e a implementação computacional de um problema.
+
+## Análise conjugada no modelo normal
+
+Neste caso, precisamos especificar uma distribuição *a priori* conjunta para $(\mu,\sigma^2)$, ou seja:
+
+$$h(\mu,\sigma^2)=h(\mu\mid\sigma^2)h(\sigma^2)\quad \text{ou} \quad h(\mu,\phi)=h(\mu\mid\phi)h(\phi)$$
+
+
+Consideramos aqui a análise conjugada para a parametrização $(\mu, \phi)$. Resultados similares podem ser obtidos para o caso $(\mu, \sigma^2)$, serão deixados como exercícios. As especificações *a priori*:
+
+  $$(\mu\mid\phi)\sim N(m, v/\phi) \quad e \quad \phi \sim Ga(a, b).$$
+  
+onde $m\in (-\infty, \infty)$, $v>0$, $a>0$ e $b>0$.
+
+## A distribuição *a posteriori*
+
+A distribuição *a posteriori* para o modelo normal é dada por
+
+$$
+h(\mu, \phi\mid X)\propto \phi^{n/2+a-1} \exp\left\{  -\phi B\right\} \times (2\pi V)^{-1/2} \exp\left\{  -\dfrac{1}{2V}(\mu-M)^2\right\}.
+$$
+
+Logo, 
+
+$$(\mu\mid \phi, X)\sim N(M, V) \quad \text{e} \quad \phi\sim Ga(A, B),$$
+
+onde:
+
+* $M=\left( n+\dfrac{1}{v}\right)^{-1}\left( \sum_{i=1}^{n}x_{i}+\dfrac{m}{v}  \right)$;
+
+* $V=\dfrac{v}{(nv+1)\phi}$;
+
+* $A=\dfrac{n}{2}+a$;
+
+* $B=b+\dfrac{m^2}{2v}+\dfrac{\sum_{i=1}^{n}x_{i}^2}{2} -\dfrac{1}{2}\left( n+\dfrac{1}{v}\right)M^2$.
+
+
+
+Dizemos que a distribuição *a posteriori*  é denominada _Normal-Gama_ neste caso. 
+
+## Implementação computacional
+
+Vimos que a distribuição *a posteriori* conjunta pode ser fatorada como segue:
+
+$$h(\mu, \phi\mid X)=h(\mu\mid \phi, X)h(\phi\mid X).$$
+
+Nesta configuração vemos que o procedimento para gerar valor de $(\mu^*, \phi^*)$ da distribuição conjunta $(\mu, \phi)$ basta seguir os seguinte passos:
+
+
+1. Gerar $\phi^*\sim h(\phi\mid X)$;
+
+2. Gerar $\mu^*\sim h(\mu\mid \phi^*, X)$.
+
+Os passos para a implementação do modelo são dados a seguir.
+
+
+## Especificações *a priori*:
+
+
+Os valores de especificados para cada distribuição *a priori* são:
+
+```{r}
+#- Hiperparâmetros da distribuição Gama:
+
+a <- 0.001
+b <- 0.001
+
+#- Hiperparâmetros da distribuição Normal:
+
+m <- 0
+v <- 100
+
+
+```
+
+
+```{r, echo= FALSE}
+n.sim <- 1000
+```
+
+## Geração dos dados:
+
+Uma amostra de tamanho 1000 será gerada de uma distribuição normal com média 10 e desvio padrão 4.
+
+```{r}
+set.seed(123456789)
+
+n <- 1000
+x <- rnorm(n=n, mean=10, sd=4)
+```
+
+
+## Iniciando a amostragem da distribuição *a posteriori*:
+
+O número de simulações é igual `r n.sim`. Logo,  
+
+
+```{r}
+
+m.post <- rep(NA, n.sim) # vetor de armazenamento
+phi.post <- rep(NA, n.sim) # vetor de armazenamento
+
+M <- (1/(n+(1/v)))*(sum(x)+(m/v)) # Média a posteriori modelo normal
+A <- (n/2)+a # Parâmetro de forma distribuição gama
+B <- b + ((m^2)/(2*v)) + (sum(x^2)/2) - (0.5*(n+(1/v))*(M^2)) # Parametro de escala distribuição gama
+
+for( i in 1:n.sim){
+  
+  #-- Gerando o phi:
+  
+  phi.post[i] <- rgamma(n=1, shape = A, rate = B) # Valor a posteriori de phi
+  
+  #-- Gerando o mu:
+  
+  V <- (v/((n*v)+1)*phi.post[i])
+  
+  m.post[i] <- rnorm(n=1, mean = M, sd=sqrt(V)) # Valor de mu a posteriori
+  
+}
+```
+
+
+Os gráficos de monitoramento:
+
+
+```{r}
+par(mfrow=c(3,1))
+plot(1:n.sim, phi.post, type="l", main=expression(phi))
+plot(1:n.sim, 1/phi.post, type="l", main=expression(sigma^2))
+plot(1:n.sim, m.post, type="l", main=expression(mu))
+```
+
+Os histogramas das distribuições *a posteriori*:
+
+```{r, fig.height=3.5, fig.width=8}
+par(mfrow=c(1,3))
+hist(phi.post, xlab="Amostras de phi", main=expression(phi))
+hist(1/phi.post, xlab="Amostras de sigma", main=expression(sigma^2))
+hist(m.post, xlab="Amostras de mu", main=expression(mu))
+```
+
+Observamos que os valores dos gráficos anteriories estão em acordo com os valores  de $\mu$ e $\sigma$ especificados na geração dos dados.
+Os valores descritivos são:
+
+
+```{r}
+require(coda)
+
+est.post <- data.frame(phi=phi.post, sigma = 1/phi.post, mu=m.post)
+
+# Medidas de resumo a posteriori:
+
+media    <- apply(est.post, MARGIN =2, FUN=mean) 
+desv     <- apply(est.post, MARGIN =2, FUN=sd)
+
+# Intervalos HPD:
+
+
+hpd.int <- HPDinterval(as.mcmc(est.post))
+
+# Saída final:
+
+result <- cbind(media, desv, hpd.int)
+result
+```
+
+
+
+
+
